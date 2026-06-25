@@ -396,6 +396,95 @@ def get_emergency_contacts():
 
 
 # ------------------------------
+# 地图和景点推荐功能
+# ------------------------------
+def get_amap_iframe(city_name, width="100%", height=400):
+    """生成高德地图iframe嵌入代码"""
+    amap_key = os.environ.get('AMAP_API_KEY', 'e7504e0b778d4f34bd5b3741d0557793')
+    
+    coords = {"lat": 39.9042, "lng": 116.4074}
+    try:
+        geocode_url = f"https://restapi.amap.com/v3/geocode/geo?address={city_name}&key={amap_key}"
+        response = requests.get(geocode_url, timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == '1' and data.get('geocodes'):
+                location = data['geocodes'][0]['location']
+                lng, lat = map(float, location.split(','))
+                coords = {"lat": lat, "lng": lng}
+    except Exception as e:
+        pass
+    
+    iframe_url = f"https://amap.com/embed?zoom=11&lat={coords['lat']}&lng={coords['lng']}&markers=pos:{coords['lng']},{coords['lat']},name:{city_name}&key={amap_key}"
+    
+    return f"""
+    <iframe 
+        src="{iframe_url}" 
+        width="{width}" 
+        height="{height}" 
+        frameborder="0" 
+        style="border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);"
+    ></iframe>
+    """
+
+
+def search_hot_spots(city_name, limit=10):
+    """搜索城市热门景点"""
+    amap_key = os.environ.get('AMAP_API_KEY', 'e7504e0b778d4f34bd5b3741d0557793')
+    spots = []
+    
+    try:
+        search_url = f"https://restapi.amap.com/v3/place/text?keywords={city_name}热门景点&city={city_name}&types=110000&key={amap_key}&offset={limit}&page=1"
+        response = requests.get(search_url, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == '1' and data.get('pois'):
+                for poi in data['pois'][:limit]:
+                    spot_detail = get_spot_detail(poi.get('id', ''))
+                    
+                    spots.append({
+                        "name": poi.get('name', ''),
+                        "type": poi.get('type', '').split(';')[1] if ';' in poi.get('type', '') else poi.get('type', '景点'),
+                        "rating": spot_detail.get('rating', 4.5),
+                        "tags": spot_detail.get('tags', ['推荐']),
+                        "address": poi.get('address', ''),
+                        "location": poi.get('location', ''),
+                        "photos": spot_detail.get('photos', []),
+                        "summary": spot_detail.get('summary', ''),
+                    })
+    except Exception as e:
+        pass
+    
+    return spots
+
+
+def get_spot_detail(spot_id):
+    """获取景点详细信息"""
+    amap_key = os.environ.get('AMAP_API_KEY', 'e7504e0b778d4f34bd5b3741d0557793')
+    detail = {"rating": 4.5, "tags": [], "photos": [], "summary": ""}
+    
+    try:
+        detail_url = f"https://restapi.amap.com/v3/place/detail?id={spot_id}&key={amap_key}"
+        response = requests.get(detail_url, timeout=5)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('status') == '1' and data.get('pois'):
+                poi = data['pois'][0]
+                detail['rating'] = float(poi.get('rating', '4.5'))
+                detail['tags'] = poi.get('tag', '').split('|') if poi.get('tag') else ['推荐']
+                detail['summary'] = poi.get('introduction', '')
+                
+                if poi.get('photos'):
+                    detail['photos'] = [photo.get('url', '') for photo in poi['photos'][:3]]
+    except Exception as e:
+        pass
+    
+    return detail
+
+
+# ------------------------------
 # 主界面
 # ------------------------------
 st.markdown('<h1 class="main-header">🎒 智能旅行打包助手 Pro</h1>', unsafe_allow_html=True)
@@ -841,6 +930,32 @@ if gen or "categories" in st.session_state:
                     {"name": "南昆山", "type": "自然风光", "rating": 4.4, "tags": ["避暑", "温泉"]},
                     {"name": "永记生态园", "type": "休闲", "rating": 4.2, "tags": ["亲子", "采摘"]},
                 ],
+                "湛江": [
+                    {"name": "湖光岩", "type": "自然风光", "rating": 4.7, "tags": ["必打卡", "世界地质公园"], "location": "110.3044,21.1575",
+                     "description": "世界地质公园、国家AAAA级景区，是玛珥湖的典型代表。湖水清澈，周围绿树成荫，环境清幽，是了解地质知识的绝佳场所。",
+                     "suitable_for": "适合各年龄段游客，尤其推荐地质爱好者、自然风光爱好者。建议2-6人结伴游览，游览时间约2-3小时。"},
+                    {"name": "东海岛", "type": "自然风光", "rating": 4.6, "tags": ["海滩", "必打卡"], "location": "110.4876,21.0378",
+                     "description": "中国第一长滩，全长28公里，海水清澈，沙滩细腻。可以在海边漫步、骑沙滩摩托车、品尝海鲜。",
+                     "suitable_for": "适合各年龄段游客，尤其推荐海滩爱好者。适合2-10人结伴，建议游玩半天到一天。"},
+                    {"name": "硇洲岛", "type": "自然风光", "rating": 4.5, "tags": ["海岛", "火山"], "location": "110.5836,20.9234",
+                     "description": "中国最大的火山岛，岛上有灯塔、火山岩等独特景观。可以体验海岛风光和火山地质奇观。",
+                     "suitable_for": "适合各年龄段游客，建议穿舒适运动鞋。适合2-6人，建议游玩一整天。"},
+                    {"name": "金沙湾", "type": "自然风光", "rating": 4.5, "tags": ["海滩", "夜景"], "location": "110.4036,21.1945",
+                     "description": "湛江市区的海滨公园，沙滩平缓，海水清澈。夜晚灯光璀璨，是观赏湛江海湾夜景的好去处。",
+                     "suitable_for": "适合各年龄段游客，尤其推荐夜游和摄影爱好者。适合2-6人，游览时间约1-2小时。"},
+                    {"name": "赤坎老街", "type": "特色街区", "rating": 4.6, "tags": ["历史", "美食"], "location": "110.3586,21.1965",
+                     "description": "湛江最古老的商业街区，保留了大量南洋风格的骑楼建筑。可以感受老湛江的风情，品尝地道的小吃。",
+                     "suitable_for": "适合各年龄段游客，尤其推荐历史文化爱好者。适合2-4人，游览时间约1-2小时。"},
+                    {"name": "广州湾法国公使署", "type": "历史", "rating": 4.4, "tags": ["历史建筑"], "location": "110.3596,21.1965",
+                     "description": "法式建筑风格的旧政府办公楼，见证了湛江的殖民历史。建筑风格独特，是了解湛江近代史的好去处。",
+                     "suitable_for": "适合各年龄段游客，尤其推荐历史爱好者。适合2-4人，游览时间约1小时。"},
+                    {"name": "特呈岛", "type": "自然风光", "rating": 4.4, "tags": ["海岛", "休闲"], "location": "110.4366,21.1235",
+                     "description": "距离市区最近的海岛，岛上有红树林、白沙滩。可以乘坐渡船前往，体验海岛渔村风情。",
+                     "suitable_for": "适合各年龄段游客，尤其推荐休闲度假的朋友。适合2-8人，建议游玩半天。"},
+                    {"name": "南三岛", "type": "自然风光", "rating": 4.3, "tags": ["海滩", "原生态"], "location": "110.6236,21.1675",
+                     "description": "保持着较为原生态的海岛风光，沙滩干净，海水清澈。是远离喧嚣、享受宁静的好去处。",
+                     "suitable_for": "适合喜欢原生态海岛风光的游客。适合2-6人，建议游玩半天到一天。"},
+                ],
             }
             
             # 获取当前城市的打卡地点
@@ -883,66 +998,63 @@ if gen or "categories" in st.session_state:
             except Exception as e:
                 pass
             
-            # 显示地图
-            st.markdown("#### 🗺️ 目的地地图")
-            
-            # 使用高德地图静态地图API（更稳定）
-            # 构建静态地图URL
-            map_url = f"https://webapi.amap.com/staticmapservice?center={coords['lng']},{coords['lat']}&zoom=11&size=800*400&markers=mid,ff0000,1:{coords['lng']},{coords['lat']}&key={amap_key}"
-            
-            # 尝试加载地图
+            # ===== 电子地图展示 =====
+            st.markdown("#### 🗺️ 目的地电子地图")
             try:
-                response = requests.get(map_url, timeout=5)
-                if response.status_code == 200:
-                    st.image(map_url, caption=f"{dest} 地图概览", width=800)
-                else:
-                    # API调用失败，显示备用内容
-                    st.markdown(f"""
-                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 30px; color: white; text-align: center;">
-                        <div style="font-size: 64px; margin-bottom: 15px;">🗺️</div>
-                        <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">{dest}</div>
-                        <div style="font-size: 16px; opacity: 0.9;">📍 纬度: {coords['lat']:.4f} | 经度: {coords['lng']:.4f}</div>
-                        <div style="font-size: 14px; opacity: 0.7; margin-top: 15px;">🌐 数据来源：高德地图</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+                # 使用交互式iframe地图
+                map_iframe = get_amap_iframe(dest, height=450)
+                st.markdown(map_iframe, unsafe_allow_html=True)
             except Exception as e:
-                # 网络错误，显示备用内容
-                st.markdown(f"""
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 10px; padding: 30px; color: white; text-align: center;">
-                    <div style="font-size: 64px; margin-bottom: 15px;">🗺️</div>
-                    <div style="font-size: 24px; font-weight: bold; margin-bottom: 10px;">{dest}</div>
-                    <div style="font-size: 16px; opacity: 0.9;">📍 纬度: {coords['lat']:.4f} | 经度: {coords['lng']:.4f}</div>
-                    <div style="font-size: 14px; opacity: 0.7; margin-top: 15px;">🌐 数据来源：高德地图</div>
-                </div>
-                """, unsafe_allow_html=True)
+                # 备用方案：静态地图
+                map_url = f"https://webapi.amap.com/staticmapservice?center={coords['lng']},{coords['lat']}&zoom=11&size=800*450&markers=mid,ff0000,1:{coords['lng']},{coords['lat']}&key={amap_key}"
+                st.image(map_url, caption=f"{dest} 地图概览", use_column_width=True)
             
-            # 如果API获取到景点，更新city_spots
-            if amap_spots:
+            # ===== 热门景点推荐 =====
+            st.markdown("#### ⭐ 当地热门景点推荐")
+            
+            # 使用API搜索景点
+            api_spots = search_hot_spots(dest, limit=8)
+            
+            # 如果API获取失败，使用预设数据
+            if api_spots:
+                city_spots = api_spots
+            elif amap_spots:
                 city_spots = amap_spots
             elif not city_spots:
-                # 如果没有预设数据且API也没返回，显示提示
                 st.info("正在获取景点数据...")
-            
-            # 热门打卡地点推荐
-            st.markdown("#### ⭐ 热门打卡地点推荐")
             
             if city_spots:
                 # 按评分排序
                 sorted_spots = sorted(city_spots, key=lambda x: x['rating'], reverse=True)
                 
-                # 显示打卡地点卡片（不显示图片）
-                for spot in sorted_spots[:6]:  # 显示前6个
-                    tags_str = " ".join([f"🏷️ {tag}" for tag in spot['tags']])
-                    with st.expander(f"🌟 {spot['name']} (评分: {spot['rating']})"):
-                        address_info = f"\n**🏠 地址：** {spot['address']}" if 'address' in spot and spot['address'] else ""
-                        st.markdown(f"""
-                        **📍 类型：** {spot['type']}
-                        \n**🏷️ 标签：** {tags_str}
-                        {address_info}
-                        \n**💡 推荐理由：** 这是{dest}最受欢迎的{spot['type']}景点之一，非常值得一去！
-                        """)
+                # 以卡片形式展示景点（每行2个）
+                cols = st.columns(2)
+                for idx, spot in enumerate(sorted_spots[:6]):
+                    with cols[idx % 2]:
+                        tags_str = " ".join([f"#{tag}" for tag in spot['tags'][:3]])
+                        address_info = spot['address'][:60] + '...' if len(spot.get('address', '')) > 60 else spot.get('address', '')
+                        description = spot.get('description', '暂无详细介绍')
+                        suitable_for = spot.get('suitable_for', '适合各类游客参观')
+                        
+                        # 用白色卡片显示景点信息
+                        card_html = f"""
+                        <div style="background: white; border-radius: 15px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); margin-bottom: 20px; border: 1px solid #e8e8e8;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px;">
+                                <h4 style="margin: 0; color: #333; font-size: 20px;">🌟 {spot['name']}</h4>
+                                <span style="background: linear-gradient(90deg, #FFD700, #FFA500); color: white; padding: 8px 16px; border-radius: 15px; font-size: 14px; font-weight: bold;">
+                                    {spot['rating']}分
+                                </span>
+                            </div>
+                            <p style="color: #666; font-size: 15px; margin: 0 0 12px 0;">📍 {spot['type']}</p>
+                            <p style="color: #444; font-size: 14px; line-height: 1.6; margin: 0 0 12px 0;"><strong style="color: #1f77b4;">✨ 推荐理由：</strong>{description}</p>
+                            <p style="color: #555; font-size: 13px; line-height: 1.5; margin: 0 0 12px 0;"><strong style="color: #ff9800;">👥 适合人群：</strong>{suitable_for}</p>
+                            <p style="color: #888; font-size: 13px; margin: 0 0 8px 0;">🏠 {address_info}</p>
+                            <p style="color: #1f77b4; font-size: 13px; margin: 0;">🏷️ {tags_str}</p>
+                        </div>
+                        """
+                        st.write(card_html, unsafe_allow_html=True)
             else:
-                st.info(f"暂时没有{dest}的打卡地点数据，我们正在努力收集更多城市信息！")
+                st.info(f"暂未获取到{dest}的景点数据，我们正在努力扩展城市覆盖范围！")
             
             # 🎯 自定义旅游路线功能
             st.markdown("#### ✏️ 自定义旅游路线")
