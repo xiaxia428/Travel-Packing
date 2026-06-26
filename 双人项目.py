@@ -189,10 +189,11 @@ def get_coordinates(city, api_key):
 
 
 def get_weather(city):
-    api_key = os.getenv("OPENWEATHER_API_KEY")
+    # 仅读取侧边栏用户输入密钥，不再读取环境变量
+    api_key = st.session_state.get("weather_api_key", "")
     
     if not api_key:
-        return None, None, None, "API Key 未配置"
+        return None, None, None, "请在侧边栏填写OpenWeather天气API密钥"
 
     lat, lon, country = get_coordinates(city, api_key)
     
@@ -213,7 +214,7 @@ def get_weather(city):
             icon = data["weather"][0]["icon"]
             return temp, weather, humidity, wind_speed, data
         elif res.status_code == 401:
-            return None, None, None, "API Key 无效或未激活"
+            return None, None, None, "你输入的API Key 无效或未激活"
         else:
             return None, None, None, f"错误：{res.status_code}"
     except Exception as e:
@@ -492,6 +493,18 @@ st.markdown('<p style="text-align: center; color: white; font-size: 1.2rem; marg
 
 # 侧边栏配置
 with st.sidebar:
+    st.markdown("## 🔑 天气API密钥")
+    weather_user_key = st.text_input(
+        "OpenWeather API Key",
+        value="",
+        type="password",
+        help="请输入你自己的OpenWeather密钥，必填才能查询天气",
+        key="input_weather_key"
+    )
+    # 将用户输入密钥存入session
+    st.session_state["weather_api_key"] = weather_user_key.strip()
+    
+    st.markdown("---")
     st.markdown("## 📝 行程信息")
     
     dest = st.text_input("🏙️ 目的地城市", placeholder="如：上海、三亚、伦敦")
@@ -797,7 +810,7 @@ if gen or "categories" in st.session_state:
             budget_per_person = initial_budget
             
             st.markdown(f"""
-            #### � {dest} {days}日{activity}路线规划
+            #### {dest} {days}日{activity}路线规划
             """)
             
             # 预算分配
@@ -946,7 +959,7 @@ if gen or "categories" in st.session_state:
                     {"name": "赤坎老街", "type": "特色街区", "rating": 4.6, "tags": ["历史", "美食"], "location": "110.3586,21.1965",
                      "description": "湛江最古老的商业街区，保留了大量南洋风格的骑楼建筑。可以感受老湛江的风情，品尝地道的小吃。",
                      "suitable_for": "适合各年龄段游客，尤其推荐历史文化爱好者。适合2-4人，游览时间约1-2小时。"},
-                    {"name": "广州湾法国公使署", "type": "历史", "rating": 4.4, "tags": ["历史建筑"], "location": "110.3596,21.1965",
+                                        {"name": "广州湾法国公使署", "type": "历史", "rating": 4.4, "tags": ["历史建筑"], "location": "110.3596,21.1965",
                      "description": "法式建筑风格的旧政府办公楼，见证了湛江的殖民历史。建筑风格独特，是了解湛江近代史的好去处。",
                      "suitable_for": "适合各年龄段游客，尤其推荐历史爱好者。适合2-4人，游览时间约1小时。"},
                     {"name": "特呈岛", "type": "自然风光", "rating": 4.4, "tags": ["海岛", "休闲"], "location": "110.4366,21.1235",
@@ -1108,7 +1121,7 @@ if gen or "categories" in st.session_state:
                 day3_spots = shopping_spots[:2] if len(shopping_spots) >= 2 else []
                 
                 routes = [
-                    ("第1天", f"✈️ 抵达入住 → �️ {day1_spots[0]['name'] if day1_spots else '历史景点'} → 🌆 夜游{dest}"),
+                    ("第1天", f"✈️ 抵达入住 → 🛕 {day1_spots[0]['name'] if day1_spots else '历史景点'} → 🌆 夜游{dest}"),
                     ("第2天", f"🏛️ {day2_spots[0]['name'] if day2_spots else '文化景点'} → 🛍️ 商业街区 → 🎭 特色演出"),
                     ("第3天", f"🌳 公园休闲 →  购买特产 → 👋 返程"),
                 ]
@@ -1441,7 +1454,7 @@ if gen or "categories" in st.session_state:
                     {st.session_state.dest}
                 </div>
                 <div class="info-item">
-                    <strong>� 行程天数</strong>
+                    <strong>📅 行程天数</strong>
                     {days} 天
                 </div>
                 <div class="info-item">
